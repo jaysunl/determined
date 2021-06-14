@@ -2,30 +2,27 @@ import logging
 import os
 import pathlib
 import pickle
+import signal
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional, cast
-
-import psutil
+from typing import Optional, cast
 
 import determined as det
-from determined import constants, horovod, ipc, workload
+from determined import constants, horovod, ipc
 from determined.common import check
 
 
 class WorkerProcessContext:
     def __init__(
         self,
-        broadcast_pub_port: int,
-        broadcast_pull_port: int,
+        pid_server_port: int,
         debug: bool,
         hvd_config: horovod.HorovodContext,
         rendezvous_info: det.RendezvousInfo,
         env: det.EnvContext,
     ) -> None:
-        self.broadcast_pub_port = broadcast_pub_port
-        self.broadcast_pull_port = broadcast_pull_port
+        self.pid_server_port = pid_server_port
         self.debug = debug
         self.hvd_config = hvd_config
         self.rendezvous_info = rendezvous_info
@@ -43,65 +40,26 @@ class WorkerProcessContext:
             pickle.dump(self, f)
 
 
-class SubprocessReceiver(workload.Source):
-    """
-    SubprocessReceiver is a lightweight wrapper around the ZMQBroadcastClient. ZMQ details are
-    handled automatically, while any received workloads are passed along blindly, resulting in a
-    network-transparent WorkloadIterator.
-    """
-
-    def __init__(self, broadcast_client: ipc.ZMQBroadcastClient):
-        self._broadcast_client = broadcast_client
-
-        # Signal to the SubprocessLauncher that the subprocess has started and
-        # send the process id so that the SubprocessLauncher can perform health
-        # checks on it.
-        self._broadcast_client.send(ipc.ConnectedMessage(process_id=os.getpid()))
-
-        # Avoid hangs when receiving from the broadcast server.  Run this after sending the
-        # ConnectedMessage so that the broadcast server has a pid for running a healthcheck while
-        # this runs.
-        self._broadcast_client.safe_start()
-
-    def __iter__(self) -> workload.Stream:
-        while True:
-            obj = self._broadcast_client.recv()
-
-            wkld = cast(workload.Workload, obj)
-
-            def _respond(message: Any) -> None:
-                self._broadcast_client.send(message)
-
-            yield wkld, _respond
-
-
 class SubprocessLauncher:
     def __init__(
         self,
         env: det.EnvContext,
-        workloads: workload.Stream,
         rendezvous_info: det.RendezvousInfo,
         hvd_config: horovod.HorovodContext,
         python_subprocess_entrypoint: Optional[str] = None,
     ) -> None:
-
         self.env = env
-        self.workloads = workloads
         self.rendezvous_info = rendezvous_info
         self.hvd_config = hvd_config
         self._python_subprocess_entrypoint = python_subprocess_entrypoint
 
         self.debug = self.env.experiment_config.debug_enabled()
 
-        # The process ids for the workers that are launched by Horovod. These are different
-        # from the main horovod process and sshd processes.
-        self._worker_process_ids = []  # type: List[int]
-
         # Horovod will have a separate training process for each slot.
         self.num_proc = len(self.env.slot_ids) if self.hvd_config.use else 1
 
-        # Step 1: Establish the server for communicating with the subprocess.
-        self.broadcast_server = ipc.ZMQBroadcastServer(num_connections=self.num_proc)
+        # Step 1: Establish the server for detecting subprocess crashes.
+        self.pid_server = ipc.PIDServer(self.num_proc).start()
 
         # Step 2: Configure the per-machine WorkerProcessContext.
         self._init_worker_process_env()
@@ -145,8 +103,7 @@ class SubprocessLauncher:
         """
 
         worker_process_env = WorkerProcessContext(
-            broadcast_pub_port=self.broadcast_server.get_pub_port(),
-            broadcast_pull_port=self.broadcast_server.get_pull_port(),
+            pid_server_port=self.pid_server.get_port(),
             debug=self.debug,
             hvd_config=self.hvd_config,
             rendezvous_info=self.rendezvous_info,
@@ -173,13 +130,7 @@ class SubprocessLauncher:
             optional_args=self.env.experiment_config.horovod_optional_args(),
             worker_process_env_path=self._worker_process_env_path,
         )
-        subprocess_env = {
-            **os.environ,
-            "NCCL_DEBUG": "INFO",
-            "DET_HOROVOD_GLOO_RENDEZVOUS_PORT": str(
-                constants.HOROVOD_GLOO_RENDEZVOUS_PORT + self.env.det_trial_unique_port_offset
-            ),
-        }
+        subprocess_env = {**os.environ, "NCCL_DEBUG": "INFO"}
         return subprocess.Popen(horovod_process_cmd, env=subprocess_env)
 
     def _launch_sshd(self) -> subprocess.Popen:
@@ -202,9 +153,7 @@ class SubprocessLauncher:
         logging.debug(f"Non-chief [{self.rendezvous_info.get_rank()}] waiting for sshd service.")
         while True:
             ssh_attempt_cmd = ["ssh", "localhost", "-p", str(constants.HOROVOD_SSH_PORT), "ls"]
-            ssh_attempt_process = subprocess.run(
-                ssh_attempt_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10
-            )
+            ssh_attempt_process = subprocess.run(ssh_attempt_cmd, timeout=10)
             if ssh_attempt_process.returncode == 0:
                 logging.debug(
                     f"Non-chief [{self.rendezvous_info.get_rank()}] successfully "
@@ -223,10 +172,6 @@ class SubprocessLauncher:
             time.sleep(1)
 
     def _launch_python_subprocess(self) -> subprocess.Popen:
-        """
-        Call training process without using horovodrun. Only used internally when testing.
-        """
-
         check.is_not_none(self._python_subprocess_entrypoint)
         self._python_subprocess_entrypoint = cast(str, self._python_subprocess_entrypoint)
 
@@ -240,111 +185,43 @@ class SubprocessLauncher:
         ]
         return subprocess.Popen(python_cmd)
 
-    def _do_startup_message_sequence(self) -> None:
-        # Wait for a ConnectedMessage from every worker.
-        responses, exception_received = self.broadcast_server.gather_with_polling(
-            self._health_check
-        )
+    def run(self) -> int:
+        with self.pid_server:
+            try:
+                self.pid_server.run(self._health_check)
+            except det.errors.WorkerError:
+                if self.is_chief_machine:
+                    # Give horovodrun a few seconds to notice the process has died.
+                    time.sleep(3)
+                    # Use SIGINT on horovod, because it freaks out with SIGTERM.
+                    self._subproc.send_signal(signal.SIGINT)
+                else:
+                    self._subproc.kill()
+                self._subproc.wait()
+                # Give some time to finish logging.
+                time.sleep(1)
+                raise
 
-        if exception_received:
-            raise det.errors.WorkerError("Training process died.")
-
-        for response in responses:
-            check.is_instance(
-                response,
-                ipc.ConnectedMessage,
-                f"Did not receive ConnectedMessage from worker. Got: {response}",
-            )
-            response = cast(ipc.ConnectedMessage, response)
-            self._worker_process_ids.append(response.process_id)
-
-        # Avoid hangs when sending to the broadcast client.
-        self.broadcast_server.safe_start(self._health_check)
-
-    def run(self) -> None:
-        """
-        The main control loop for controlling worker processes.
-        """
-
-        try:
-            self._do_startup_message_sequence()
-            for wkld, response_func in self.workloads:
-                response_func(self._send_recv_workload(wkld))
-        finally:
-            self.broadcast_server.close()
-
-            # If we wait for delete to be called when the interpreter shutdowns, we sometimes get a
-            # (harmless) stack trace from delete a socket with a `None` value. This is due to race
-            # conditions between when the interpreter deletes the weakref module and when pyzmq
-            # calls the weakref module in a __del__ method. We work around this by triggering the
-            # garbage collection earlier.
-            del self.broadcast_server
+            if self.is_chief_machine:
+                # wait for horovod run to exit normally.
+                ret = self._subproc.wait()
+                if ret != 0:
+                    if self.hvd_config.use:
+                        logging.error(f"horovodrun exited {ret}")
+                    else:
+                        logging.error(f"training process exited {ret}")
+                return ret
+            else:
+                # Give horovod a few seconds to notice the process has died nicely.
+                time.sleep(3)
+                self._subproc.kill()
+                self._subproc.wait()
+                return 0
 
     def _health_check(self) -> None:
         """
-        Raise an error if the train process dies.  Useful while gathering responses from workers to
-        prevent hanging in case of a dead worker.
+        Raise an error if the main subprocess or if any workers die.
         """
 
         if self._subproc.poll() is not None:
-            raise det.errors.WorkerError("Training process died.")
-
-        for subprocess_id in self._worker_process_ids:
-            if not psutil.pid_exists(subprocess_id):
-                # Wait a few seconds, in case some processes are in the process of exiting but have
-                # not finished logging quite yet.
-                time.sleep(3)
-                raise det.errors.WorkerError("Detected that worker process died.")
-
-    def _send_recv_workload(self, wkld: workload.Workload) -> workload.Response:
-        # Broadcast every workload to every worker on this machine.
-        self.broadcast_server.broadcast(wkld)
-
-        if wkld.kind == workload.Workload.Kind.TERMINATE:
-            # Do not perform health checks once worker have been instructed to terminate.
-            self._worker_process_ids = []
-
-        try:
-            responses, exception_received = self.broadcast_server.gather_with_polling(
-                self._health_check
-            )
-        except det.errors.WorkerError:
-            if wkld.kind == workload.Workload.Kind.TERMINATE:
-                return {}
-            raise
-
-        if exception_received:
-            raise det.errors.WorkerError("Training process died.")
-
-        # Find the response from the chief worker for the trial (the only non-SkippedWorkload). The
-        # chief may report to another container, in which case we will only have SkippedWorkloads.
-        chief_worker_response = None  # Optional[workload.Metrics]
-        for response in responses:
-            if isinstance(response, workload.Skipped):
-                continue
-            # Any other response must be a Dict[str, Any]-like object.
-            check.is_instance(
-                response, dict, f"Received non-metrics object from worker: {response}"
-            )
-            # There should only be one chief response.
-            # Special case InvalidHP messages
-            if chief_worker_response != {
-                "metrics": {},
-                "stop_requested": False,
-                "invalid_hp": True,
-                "init_invalid_hp": False,
-            }:
-                check.is_none(
-                    chief_worker_response, "Received multiple non-SkippedWorkload messages."
-                )
-            chief_worker_response = cast(Dict[str, Any], response)
-
-        # Confirm that if we have did not see a chief response then we are not the chief machine.
-        if chief_worker_response is None:
-            check.gt(
-                self.rendezvous_info.get_rank(),
-                0,
-                "Received SkippedWorkload message from chief worker.",
-            )
-
-        return workload.Skipped() if chief_worker_response is None else chief_worker_response
+            raise det.errors.WorkerError("main subprocess died")
