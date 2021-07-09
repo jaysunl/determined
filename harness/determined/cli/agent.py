@@ -75,7 +75,7 @@ def list_slots(args: argparse.Namespace) -> None:
                 ("slot_id", local_id(slot_id)),
                 ("enabled", slot["enabled"]),
                 (
-                    "task_id",
+                    "allocation_id",
                     c_names[slot["container"]["id"]]["id"] if slot["container"] else "FREE",
                 ),
                 (
