@@ -1645,12 +1645,6 @@ export interface V1GetCurrentTrialSearcherOperationResponse {
      * @memberof V1GetCurrentTrialSearcherOperationResponse
      */
     op?: V1SearcherOperation;
-    /**
-     * If the current operation has been completed.
-     * @type {boolean}
-     * @memberof V1GetCurrentTrialSearcherOperationResponse
-     */
-    complete?: boolean;
 }
 
 /**

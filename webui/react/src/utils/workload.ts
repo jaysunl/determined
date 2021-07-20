@@ -2,7 +2,6 @@ import { CheckpointWorkload, MetricsWorkload, Step,
   WorkloadWrapper } from '../types';
 
 export const hasCheckpointStep = (step: Step): boolean => {
-  // CHECK would we still have a concept of a deleted checkpoint?
   return !!step.checkpoint;
 };
 
