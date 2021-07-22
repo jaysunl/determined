@@ -25,8 +25,6 @@ MODEL_MODES = {
     "question-answering": transformers.AutoModelForQuestionAnswering,
 }
 
-logger = logging.getLogger(__name__)
-
 
 def build_using_auto(
     config_kwargs: Union[Dict, attrdict.AttrDict],
@@ -268,7 +266,7 @@ class BaseTransformerTrial(det_torch.PyTorchTrial):
                 self.context.get_experiment_config(), self.context.get_global_batch_size()
             )
         if "use_pretrained_weights" not in self.hparams:
-            logger.warning(
+            logging.warning(
                 "We will be using pretrained weights for the model by default."
                 "If you want to train the model from scratch, you can set a hyperparameter "
                 "named use_pretrained_weights to false in the experiment config."
