@@ -74,7 +74,7 @@ func TestTrialMultiAlloc(t *testing.T) {
 		taskID,
 		1,
 		model.PausedState,
-		TrialSearcherState{Create: searcher.Create{RequestID: rID}, Complete: true},
+		trialSearcherState{Create: searcher.Create{RequestID: rID}, Complete: true},
 		rm, logger,
 		db,
 		schemas.WithDefaults(expconf.ExperimentConfig{
@@ -95,7 +95,7 @@ func TestTrialMultiAlloc(t *testing.T) {
 
 	// Pre-scheduled stage.
 	require.NoError(t, system.Ask(self, model.ActiveState).Error())
-	require.NoError(t, system.Ask(self, TrialSearcherState{
+	require.NoError(t, system.Ask(self, trialSearcherState{
 		Create: searcher.Create{RequestID: rID},
 		Op: searcher.ValidateAfter{
 			RequestID: rID,
@@ -177,7 +177,7 @@ func TestTrialMultiAlloc(t *testing.T) {
 
 	// Running stage.
 	db.On("UpdateTrial", 0, model.StoppingCompletedState).Return(nil)
-	require.NoError(t, system.Ask(self, TrialSearcherState{
+	require.NoError(t, system.Ask(self, trialSearcherState{
 		Create: searcher.Create{RequestID: rID},
 		Op: searcher.ValidateAfter{
 			RequestID: rID,
@@ -236,7 +236,7 @@ func TestTrialDelayedSearcherClose(t *testing.T) {
 		taskID,
 		1,
 		model.PausedState,
-		TrialSearcherState{Create: searcher.Create{RequestID: rID}, Complete: true},
+		trialSearcherState{Create: searcher.Create{RequestID: rID}, Complete: true},
 		rm, logger,
 		db,
 		schemas.WithDefaults(expconf.ExperimentConfig{
@@ -257,7 +257,7 @@ func TestTrialDelayedSearcherClose(t *testing.T) {
 
 	// Pre-scheduled stage.
 	require.NoError(t, system.Ask(self, model.ActiveState).Error())
-	require.NoError(t, system.Ask(self, TrialSearcherState{
+	require.NoError(t, system.Ask(self, trialSearcherState{
 		Create: searcher.Create{RequestID: rID},
 		Op: searcher.ValidateAfter{
 			RequestID: rID,
@@ -338,7 +338,7 @@ func TestTrialDelayedSearcherClose(t *testing.T) {
 	require.True(t, tr.allocation.rendezvous.ready())
 
 	// Running stage.
-	require.NoError(t, system.Ask(self, TrialSearcherState{
+	require.NoError(t, system.Ask(self, trialSearcherState{
 		Create: searcher.Create{RequestID: rID},
 		Op: searcher.ValidateAfter{
 			RequestID: rID,
@@ -374,7 +374,7 @@ func TestTrialDelayedSearcherClose(t *testing.T) {
 	// Later searcher decides it's done.
 	db.On("UpdateTrial", 0, model.StoppingCompletedState).Return(nil)
 	db.On("UpdateTrial", 0, model.CompletedState).Return(nil)
-	require.NoError(t, system.Ask(self, TrialSearcherState{
+	require.NoError(t, system.Ask(self, trialSearcherState{
 		Create: searcher.Create{RequestID: rID},
 		Op: searcher.ValidateAfter{
 			RequestID: rID,
@@ -411,7 +411,7 @@ func TestTrialRestarts(t *testing.T) {
 		taskID,
 		1,
 		model.PausedState,
-		TrialSearcherState{Create: searcher.Create{RequestID: rID}, Complete: true},
+		trialSearcherState{Create: searcher.Create{RequestID: rID}, Complete: true},
 		rm, logger,
 		db,
 		schemas.WithDefaults(expconf.ExperimentConfig{
@@ -433,7 +433,7 @@ func TestTrialRestarts(t *testing.T) {
 
 	// Pre-scheduled stage.
 	require.NoError(t, system.Ask(self, model.ActiveState).Error())
-	require.NoError(t, system.Ask(self, TrialSearcherState{
+	require.NoError(t, system.Ask(self, trialSearcherState{
 		Create: searcher.Create{RequestID: rID},
 		Op: searcher.ValidateAfter{
 			RequestID: rID,

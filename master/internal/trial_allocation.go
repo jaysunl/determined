@@ -66,14 +66,14 @@ func newTrialAllocation(
 	}
 }
 
-func (t *trialAllocation) process(ctx *actor.Context) (*AllocationExitStatus, error) {
+func (t *trialAllocation) Receive(ctx *actor.Context) (*AllocationExitStatus, error) {
 	switch msg := ctx.Message().(type) {
 	case sproto.TaskContainerStateChanged:
 		return t.processContainerMessage(ctx, msg)
 	case sproto.ReleaseResources:
-		return t.terminate(ctx, preempt)
+		return t.terminate(ctx, graceful)
 	case watchRendezvousInfo, unwatchRendezvousInfo, rendezvousTimeout:
-		switch err := t.rendezvous.process(ctx).(type) {
+		switch err := t.rendezvous.Receive(ctx).(type) {
 		case errTimeoutExceeded:
 			ctx.Tell(ctx.Self(), model.TrialLog{Message: err.Error()})
 		case nil:
@@ -82,7 +82,7 @@ func (t *trialAllocation) process(ctx *actor.Context) (*AllocationExitStatus, er
 		}
 		return nil, nil
 	case watchPreemption, unwatchPreemption, preemptionTimeout, ackPreemption:
-		switch err := t.preemption.process(ctx).(type) {
+		switch err := t.preemption.Receive(ctx).(type) {
 		case errTimeoutExceeded:
 			ctx.Log().WithError(err).Errorf("forcibly terminating trial")
 			return t.terminate(ctx, kill)
@@ -140,10 +140,10 @@ const (
 	// kill is used to forcibly halt a trial. calling this will kill existing allocations
 	// and exit. terminate is re-entered after a kill when all containers have stopped.
 	kill terminationType = "kill"
-	// preempt is used to gracefully halt a trial. calling this will (usually, with the exception
+	// graceful is used to gracefully halt a trial. calling this will (usually, with the exception
 	// of unready trials) send a preemption signal to all watchers and begin a timeout after which
 	// we forcibly kill the trial.
-	preempt terminationType = "preempt"
+	graceful terminationType = "graceful"
 	// noop is used to try to move a trial to a terminal state while taking no direct action on it.
 	// e.g., if the searcher tells us it's done, we either should exit right away if we're unallocated,
 	// or just chill and wait for the active task to exit.
@@ -163,10 +163,10 @@ func (t *trialAllocation) terminate(
 		ctx.Log().Info("terminating trial because all containers have exited")
 		exitStatus := t.terminated(ctx)
 		return &exitStatus, nil
-	case tt == noop, tt == preempt && len(t.terminatedContainers) > 0:
+	case tt == noop, tt == graceful && len(t.terminatedContainers) > 0:
 		// Working on it.
 		return nil, nil
-	case tt == preempt && t.rendezvous.ready():
+	case tt == graceful && t.rendezvous.ready():
 		ctx.Log().Info("gracefully terminating trial")
 		t.preemption.preempt()
 		ctx.Tell(ctx.Self(), preemptionTimeout{t.req.AllocationID})

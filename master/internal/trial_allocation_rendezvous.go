@@ -72,7 +72,7 @@ func newRendezvous(allocationID model.AllocationID, ranks map[cproto.ID]int) ren
 	}
 }
 
-func (r *rendezvous) process(ctx *actor.Context) error {
+func (r *rendezvous) Receive(ctx *actor.Context) error {
 	switch msg := ctx.Message().(type) {
 	case watchRendezvousInfo:
 		if w, err := r.watch(msg.allocationID, msg.containerID); err != nil {

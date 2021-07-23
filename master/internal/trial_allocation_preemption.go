@@ -57,7 +57,7 @@ func newPreemption(taskID model.AllocationID) preemption {
 	}
 }
 
-func (p *preemption) process(ctx *actor.Context) error {
+func (p *preemption) Receive(ctx *actor.Context) error {
 	switch msg := ctx.Message().(type) {
 	case watchPreemption:
 		if w, err := p.watch(msg.allocationID, msg.id); err != nil {
