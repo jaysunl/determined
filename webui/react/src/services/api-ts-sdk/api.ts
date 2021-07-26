@@ -547,15 +547,15 @@ export interface StreamResultOfV1TrialsSnapshotResponse {
 }
 
 /**
- * The units for the training length.   - UNITS_UNSPECIFIED: Zero-value (not allowed).  - UNITS_RECORDS: Indicates a training length is specified in records, samples or another synonymous unit.  - UNITS_BATCHES: Indicates a training length is specified in batches.  - UNITS_EPOCHS: Indicates a training length is specified in epochs.
+ * The units for the training length.   - UNIT_UNSPECIFIED: Zero-value (not allowed).  - UNIT_RECORDS: Indicates a training length is specified in records, samples or another synonymous unit.  - UNIT_BATCHES: Indicates a training length is specified in batches.  - UNIT_EPOCHS: Indicates a training length is specified in epochs.
  * @export
  * @enum {string}
  */
-export enum TrainingLengthUnits {
-    UNSPECIFIED = <any> 'UNITS_UNSPECIFIED',
-    RECORDS = <any> 'UNITS_RECORDS',
-    BATCHES = <any> 'UNITS_BATCHES',
-    EPOCHS = <any> 'UNITS_EPOCHS'
+export enum TrainingLengthUnit {
+    UNSPECIFIED = <any> 'UNIT_UNSPECIFIED',
+    RECORDS = <any> 'UNIT_RECORDS',
+    BATCHES = <any> 'UNIT_BATCHES',
+    EPOCHS = <any> 'UNIT_EPOCHS'
 }
 
 /**
@@ -679,23 +679,23 @@ export interface Trialv1Trial {
 /**
  * Acknowledge the receipt of some stop signal.
  * @export
- * @interface V1AckTaskPreemptionSignalRequest
+ * @interface V1AckAllocationPreemptionSignalRequest
  */
-export interface V1AckTaskPreemptionSignalRequest {
+export interface V1AckAllocationPreemptionSignalRequest {
     /**
-     * The task that is acknowledging the request.
+     * The allocation that is acknowledging the request.
      * @type {string}
-     * @memberof V1AckTaskPreemptionSignalRequest
+     * @memberof V1AckAllocationPreemptionSignalRequest
      */
-    taskId: string;
+    allocationId: string;
 }
 
 /**
- * Response to AckTaskPreemptionSignalRequest.
+ * Response to AckAllocationPreemptionSignalRequest.
  * @export
- * @interface V1AckTaskPreemptionSignalResponse
+ * @interface V1AckAllocationPreemptionSignalResponse
  */
-export interface V1AckTaskPreemptionSignalResponse {
+export interface V1AckAllocationPreemptionSignalResponse {
 }
 
 /**
@@ -774,6 +774,34 @@ export interface V1AgentUserGroup {
      * @memberof V1AgentUserGroup
      */
     agentGid?: number;
+}
+
+/**
+ * Response to AllocationPreemptionSignalRequest.
+ * @export
+ * @interface V1AllocationPreemptionSignalResponse
+ */
+export interface V1AllocationPreemptionSignalResponse {
+    /**
+     * True if signaling preempt, otherwise just a synchronization marker.
+     * @type {boolean}
+     * @memberof V1AllocationPreemptionSignalResponse
+     */
+    preempt?: boolean;
+}
+
+/**
+ * 
+ * @export
+ * @interface V1AllocationRendezvousInfoResponse
+ */
+export interface V1AllocationRendezvousInfoResponse {
+    /**
+     * The rendezvous information.
+     * @type {V1RendezvousInfo}
+     * @memberof V1AllocationRendezvousInfoResponse
+     */
+    rendezvousInfo: V1RendezvousInfo;
 }
 
 /**
@@ -1645,6 +1673,12 @@ export interface V1GetCurrentTrialSearcherOperationResponse {
      * @memberof V1GetCurrentTrialSearcherOperationResponse
      */
     op?: V1SearcherOperation;
+    /**
+     * The status of the searcher operation.
+     * @type {boolean}
+     * @memberof V1GetCurrentTrialSearcherOperationResponse
+     */
+    completed?: boolean;
 }
 
 /**
@@ -4168,34 +4202,6 @@ export interface V1Slot {
 }
 
 /**
- * Response to TaskPreemptionSignalRequest.
- * @export
- * @interface V1TaskPreemptionSignalResponse
- */
-export interface V1TaskPreemptionSignalResponse {
-    /**
-     * True if signaling preempt, otherwise just a synchronization marker.
-     * @type {boolean}
-     * @memberof V1TaskPreemptionSignalResponse
-     */
-    preempt?: boolean;
-}
-
-/**
- * 
- * @export
- * @interface V1TaskRendezvousInfoResponse
- */
-export interface V1TaskRendezvousInfoResponse {
-    /**
-     * The rendezvous information.
-     * @type {V1RendezvousInfo}
-     * @memberof V1TaskRendezvousInfoResponse
-     */
-    rendezvousInfo: V1RendezvousInfo;
-}
-
-/**
  * Templates move settings that are shared by many experiments into a single YAML file.
  * @export
  * @interface V1Template
@@ -4297,10 +4303,10 @@ export interface V1Tensorboard {
 export interface V1TrainingLength {
     /**
      * The units the training length is in terms of.
-     * @type {TrainingLengthUnits}
+     * @type {TrainingLengthUnit}
      * @memberof V1TrainingLength
      */
-    units: TrainingLengthUnits;
+    unit: TrainingLengthUnit;
     /**
      * The value for the training length.
      * @type {number}
@@ -4345,6 +4351,12 @@ export interface V1TrainingMetrics {
      * @memberof V1TrainingMetrics
      */
     totalEpochs?: number;
+    /**
+     * The number of records used to compute the given metrics.
+     * @type {number}
+     * @memberof V1TrainingMetrics
+     */
+    computedRecords?: number;
     /**
      * The metrics for this bit of training (reduced over the reporting period).
      * @type {any}
@@ -4767,6 +4779,12 @@ export interface V1ValidationMetrics {
      * @memberof V1ValidationMetrics
      */
     totalEpochs?: number;
+    /**
+     * The number of records used to compute the given metrics.
+     * @type {number}
+     * @memberof V1ValidationMetrics
+     */
+    computedRecords?: number;
     /**
      * The metrics.
      * @type {any}
@@ -8839,23 +8857,23 @@ export const InternalApiFetchParamCreator = function (configuration?: Configurat
     return {
         /**
          * 
-         * @summary Acknowledge the receipt of a signal to stop the current running task early. This is used indicate and exit 0 isn't final. Used for HP search directed early stops and preemption signals (not necessarily just scheduler preemption).
-         * @param {string} taskId The task that is acknowledging the request.
-         * @param {V1AckTaskPreemptionSignalRequest} body 
+         * @summary Acknowledge the receipt of a signal to stop the given allocation early. This is used indicate and exit 0 isn't final; specifically, it is used for HP search directed early stops and preemption signals (not necessarily just scheduler preemption).
+         * @param {string} allocationId The allocation that is acknowledging the request.
+         * @param {V1AckAllocationPreemptionSignalRequest} body 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        determinedAckTaskPreemptionSignal(taskId: string, body: V1AckTaskPreemptionSignalRequest, options: any = {}): FetchArgs {
-            // verify required parameter 'taskId' is not null or undefined
-            if (taskId === null || taskId === undefined) {
-                throw new RequiredError('taskId','Required parameter taskId was null or undefined when calling determinedAckTaskPreemptionSignal.');
+        determinedAckAllocationPreemptionSignal(allocationId: string, body: V1AckAllocationPreemptionSignalRequest, options: any = {}): FetchArgs {
+            // verify required parameter 'allocationId' is not null or undefined
+            if (allocationId === null || allocationId === undefined) {
+                throw new RequiredError('allocationId','Required parameter allocationId was null or undefined when calling determinedAckAllocationPreemptionSignal.');
             }
             // verify required parameter 'body' is not null or undefined
             if (body === null || body === undefined) {
-                throw new RequiredError('body','Required parameter body was null or undefined when calling determinedAckTaskPreemptionSignal.');
+                throw new RequiredError('body','Required parameter body was null or undefined when calling determinedAckAllocationPreemptionSignal.');
             }
-            const localVarPath = `/api/v1/tasks/{taskId}/signals/ack_preemption`
-                .replace(`{${"taskId"}}`, encodeURIComponent(String(taskId)));
+            const localVarPath = `/api/v1/allocations/{allocationId}/signals/ack_preemption`
+                .replace(`{${"allocationId"}}`, encodeURIComponent(String(allocationId)));
             const localVarUrlObj = url.parse(localVarPath, true);
             const localVarRequestOptions = Object.assign({ method: 'POST' }, options);
             const localVarHeaderParameter = {} as any;
@@ -8875,8 +8893,93 @@ export const InternalApiFetchParamCreator = function (configuration?: Configurat
             // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
             delete localVarUrlObj.search;
             localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
-            const needsSerialization = (<any>"V1AckTaskPreemptionSignalRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            const needsSerialization = (<any>"V1AckAllocationPreemptionSignalRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
             localVarRequestOptions.body =  needsSerialization ? JSON.stringify(body || {}) : (body || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Long poll preemption signals for the given allocation. If the allocation has been preempted when called, it will return so immediately. Otherwise, the connection will be kept open until the timeout is reached or the allocation is preempted.
+         * @param {string} allocationId The id of the allocation.
+         * @param {number} [timeoutSeconds] The timeout in seconds.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        determinedAllocationPreemptionSignal(allocationId: string, timeoutSeconds?: number, options: any = {}): FetchArgs {
+            // verify required parameter 'allocationId' is not null or undefined
+            if (allocationId === null || allocationId === undefined) {
+                throw new RequiredError('allocationId','Required parameter allocationId was null or undefined when calling determinedAllocationPreemptionSignal.');
+            }
+            const localVarPath = `/api/v1/allocations/{allocationId}/signals/preemption`
+                .replace(`{${"allocationId"}}`, encodeURIComponent(String(allocationId)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerToken required
+            if (configuration && configuration.apiKey) {
+                const localVarApiKeyValue = typeof configuration.apiKey === 'function'
+					? configuration.apiKey("Authorization")
+					: configuration.apiKey;
+                localVarHeaderParameter["Authorization"] = localVarApiKeyValue;
+            }
+
+            if (timeoutSeconds !== undefined) {
+                localVarQueryParameter['timeoutSeconds'] = timeoutSeconds;
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Gather an allocation's rendezvous info. Blocks until all trial containers connect to gather their rendezvous information and responds to them all at once.
+         * @param {string} allocationId The id of the allocation.
+         * @param {string} containerId The id of the allocation. Used to verify all allocations are connected.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        determinedAllocationRendezvousInfo(allocationId: string, containerId: string, options: any = {}): FetchArgs {
+            // verify required parameter 'allocationId' is not null or undefined
+            if (allocationId === null || allocationId === undefined) {
+                throw new RequiredError('allocationId','Required parameter allocationId was null or undefined when calling determinedAllocationRendezvousInfo.');
+            }
+            // verify required parameter 'containerId' is not null or undefined
+            if (containerId === null || containerId === undefined) {
+                throw new RequiredError('containerId','Required parameter containerId was null or undefined when calling determinedAllocationRendezvousInfo.');
+            }
+            const localVarPath = `/api/v1/allocations/{allocationId}/rendezvous_info/{containerId}`
+                .replace(`{${"allocationId"}}`, encodeURIComponent(String(allocationId)))
+                .replace(`{${"containerId"}}`, encodeURIComponent(String(containerId)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerToken required
+            if (configuration && configuration.apiKey) {
+                const localVarApiKeyValue = typeof configuration.apiKey === 'function'
+					? configuration.apiKey("Authorization")
+					: configuration.apiKey;
+                localVarHeaderParameter["Authorization"] = localVarApiKeyValue;
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
 
             return {
                 url: url.format(localVarUrlObj),
@@ -9606,91 +9709,6 @@ export const InternalApiFetchParamCreator = function (configuration?: Configurat
         },
         /**
          * 
-         * @summary Long poll preemption signals for the given task. If the task's current task has been preempted when called, it will return so immediately. Otherwise, the connection will be kept open until the timeout is reached or the task is preempted.
-         * @param {string} taskId The id of the task.
-         * @param {number} [timeoutSeconds] The timeout in seconds.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        determinedTaskPreemptionSignal(taskId: string, timeoutSeconds?: number, options: any = {}): FetchArgs {
-            // verify required parameter 'taskId' is not null or undefined
-            if (taskId === null || taskId === undefined) {
-                throw new RequiredError('taskId','Required parameter taskId was null or undefined when calling determinedTaskPreemptionSignal.');
-            }
-            const localVarPath = `/api/v1/tasks/{taskId}/signals/preemption`
-                .replace(`{${"taskId"}}`, encodeURIComponent(String(taskId)));
-            const localVarUrlObj = url.parse(localVarPath, true);
-            const localVarRequestOptions = Object.assign({ method: 'GET' }, options);
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerToken required
-            if (configuration && configuration.apiKey) {
-                const localVarApiKeyValue = typeof configuration.apiKey === 'function'
-					? configuration.apiKey("Authorization")
-					: configuration.apiKey;
-                localVarHeaderParameter["Authorization"] = localVarApiKeyValue;
-            }
-
-            if (timeoutSeconds !== undefined) {
-                localVarQueryParameter['timeoutSeconds'] = timeoutSeconds;
-            }
-
-            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
-            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
-            delete localVarUrlObj.search;
-            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
-
-            return {
-                url: url.format(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
-         * 
-         * @summary Gather a task's rendezvous info. Blocks until all trial containers connect to gather their rendezvous information and responds to them all at once.
-         * @param {string} taskId The id of the task.
-         * @param {string} containerId The id of the allocation. Used to verify all allocations are connected.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        determinedTaskRendezvousInfo(taskId: string, containerId: string, options: any = {}): FetchArgs {
-            // verify required parameter 'taskId' is not null or undefined
-            if (taskId === null || taskId === undefined) {
-                throw new RequiredError('taskId','Required parameter taskId was null or undefined when calling determinedTaskRendezvousInfo.');
-            }
-            // verify required parameter 'containerId' is not null or undefined
-            if (containerId === null || containerId === undefined) {
-                throw new RequiredError('containerId','Required parameter containerId was null or undefined when calling determinedTaskRendezvousInfo.');
-            }
-            const localVarPath = `/api/v1/tasks/{taskId}/rendezvous_info/{containerId}`
-                .replace(`{${"taskId"}}`, encodeURIComponent(String(taskId)))
-                .replace(`{${"containerId"}}`, encodeURIComponent(String(containerId)));
-            const localVarUrlObj = url.parse(localVarPath, true);
-            const localVarRequestOptions = Object.assign({ method: 'GET' }, options);
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerToken required
-            if (configuration && configuration.apiKey) {
-                const localVarApiKeyValue = typeof configuration.apiKey === 'function'
-					? configuration.apiKey("Authorization")
-					: configuration.apiKey;
-                localVarHeaderParameter["Authorization"] = localVarApiKeyValue;
-            }
-
-            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
-            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
-            delete localVarUrlObj.search;
-            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
-
-            return {
-                url: url.format(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
-         * 
          * @summary Get a sample of the metrics over time for a sample of the trials.
          * @param {number} experimentId The id of the experiment.
          * @param {string} metricName A metric name.
@@ -9854,14 +9872,54 @@ export const InternalApiFp = function(configuration?: Configuration) {
     return {
         /**
          * 
-         * @summary Acknowledge the receipt of a signal to stop the current running task early. This is used indicate and exit 0 isn't final. Used for HP search directed early stops and preemption signals (not necessarily just scheduler preemption).
-         * @param {string} taskId The task that is acknowledging the request.
-         * @param {V1AckTaskPreemptionSignalRequest} body 
+         * @summary Acknowledge the receipt of a signal to stop the given allocation early. This is used indicate and exit 0 isn't final; specifically, it is used for HP search directed early stops and preemption signals (not necessarily just scheduler preemption).
+         * @param {string} allocationId The allocation that is acknowledging the request.
+         * @param {V1AckAllocationPreemptionSignalRequest} body 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        determinedAckTaskPreemptionSignal(taskId: string, body: V1AckTaskPreemptionSignalRequest, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<V1AckTaskPreemptionSignalResponse> {
-            const localVarFetchArgs = InternalApiFetchParamCreator(configuration).determinedAckTaskPreemptionSignal(taskId, body, options);
+        determinedAckAllocationPreemptionSignal(allocationId: string, body: V1AckAllocationPreemptionSignalRequest, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<V1AckAllocationPreemptionSignalResponse> {
+            const localVarFetchArgs = InternalApiFetchParamCreator(configuration).determinedAckAllocationPreemptionSignal(allocationId, body, options);
+            return (fetch: FetchAPI = portableFetch, basePath: string = BASE_PATH) => {
+                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
+                    if (response.status >= 200 && response.status < 300) {
+                        return response.json();
+                    } else {
+                        throw response;
+                    }
+                });
+            };
+        },
+        /**
+         * 
+         * @summary Long poll preemption signals for the given allocation. If the allocation has been preempted when called, it will return so immediately. Otherwise, the connection will be kept open until the timeout is reached or the allocation is preempted.
+         * @param {string} allocationId The id of the allocation.
+         * @param {number} [timeoutSeconds] The timeout in seconds.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        determinedAllocationPreemptionSignal(allocationId: string, timeoutSeconds?: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<V1AllocationPreemptionSignalResponse> {
+            const localVarFetchArgs = InternalApiFetchParamCreator(configuration).determinedAllocationPreemptionSignal(allocationId, timeoutSeconds, options);
+            return (fetch: FetchAPI = portableFetch, basePath: string = BASE_PATH) => {
+                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
+                    if (response.status >= 200 && response.status < 300) {
+                        return response.json();
+                    } else {
+                        throw response;
+                    }
+                });
+            };
+        },
+        /**
+         * 
+         * @summary Gather an allocation's rendezvous info. Blocks until all trial containers connect to gather their rendezvous information and responds to them all at once.
+         * @param {string} allocationId The id of the allocation.
+         * @param {string} containerId The id of the allocation. Used to verify all allocations are connected.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        determinedAllocationRendezvousInfo(allocationId: string, containerId: string, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<V1AllocationRendezvousInfoResponse> {
+            const localVarFetchArgs = InternalApiFetchParamCreator(configuration).determinedAllocationRendezvousInfo(allocationId, containerId, options);
             return (fetch: FetchAPI = portableFetch, basePath: string = BASE_PATH) => {
                 return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
                     if (response.status >= 200 && response.status < 300) {
@@ -10209,46 +10267,6 @@ export const InternalApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
-         * @summary Long poll preemption signals for the given task. If the task's current task has been preempted when called, it will return so immediately. Otherwise, the connection will be kept open until the timeout is reached or the task is preempted.
-         * @param {string} taskId The id of the task.
-         * @param {number} [timeoutSeconds] The timeout in seconds.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        determinedTaskPreemptionSignal(taskId: string, timeoutSeconds?: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<V1TaskPreemptionSignalResponse> {
-            const localVarFetchArgs = InternalApiFetchParamCreator(configuration).determinedTaskPreemptionSignal(taskId, timeoutSeconds, options);
-            return (fetch: FetchAPI = portableFetch, basePath: string = BASE_PATH) => {
-                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
-                    if (response.status >= 200 && response.status < 300) {
-                        return response.json();
-                    } else {
-                        throw response;
-                    }
-                });
-            };
-        },
-        /**
-         * 
-         * @summary Gather a task's rendezvous info. Blocks until all trial containers connect to gather their rendezvous information and responds to them all at once.
-         * @param {string} taskId The id of the task.
-         * @param {string} containerId The id of the allocation. Used to verify all allocations are connected.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        determinedTaskRendezvousInfo(taskId: string, containerId: string, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<V1TaskRendezvousInfoResponse> {
-            const localVarFetchArgs = InternalApiFetchParamCreator(configuration).determinedTaskRendezvousInfo(taskId, containerId, options);
-            return (fetch: FetchAPI = portableFetch, basePath: string = BASE_PATH) => {
-                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
-                    if (response.status >= 200 && response.status < 300) {
-                        return response.json();
-                    } else {
-                        throw response;
-                    }
-                });
-            };
-        },
-        /**
-         * 
          * @summary Get a sample of the metrics over time for a sample of the trials.
          * @param {number} experimentId The id of the experiment.
          * @param {string} metricName A metric name.
@@ -10308,14 +10326,36 @@ export const InternalApiFactory = function (configuration?: Configuration, fetch
     return {
         /**
          * 
-         * @summary Acknowledge the receipt of a signal to stop the current running task early. This is used indicate and exit 0 isn't final. Used for HP search directed early stops and preemption signals (not necessarily just scheduler preemption).
-         * @param {string} taskId The task that is acknowledging the request.
-         * @param {V1AckTaskPreemptionSignalRequest} body 
+         * @summary Acknowledge the receipt of a signal to stop the given allocation early. This is used indicate and exit 0 isn't final; specifically, it is used for HP search directed early stops and preemption signals (not necessarily just scheduler preemption).
+         * @param {string} allocationId The allocation that is acknowledging the request.
+         * @param {V1AckAllocationPreemptionSignalRequest} body 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        determinedAckTaskPreemptionSignal(taskId: string, body: V1AckTaskPreemptionSignalRequest, options?: any) {
-            return InternalApiFp(configuration).determinedAckTaskPreemptionSignal(taskId, body, options)(fetch, basePath);
+        determinedAckAllocationPreemptionSignal(allocationId: string, body: V1AckAllocationPreemptionSignalRequest, options?: any) {
+            return InternalApiFp(configuration).determinedAckAllocationPreemptionSignal(allocationId, body, options)(fetch, basePath);
+        },
+        /**
+         * 
+         * @summary Long poll preemption signals for the given allocation. If the allocation has been preempted when called, it will return so immediately. Otherwise, the connection will be kept open until the timeout is reached or the allocation is preempted.
+         * @param {string} allocationId The id of the allocation.
+         * @param {number} [timeoutSeconds] The timeout in seconds.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        determinedAllocationPreemptionSignal(allocationId: string, timeoutSeconds?: number, options?: any) {
+            return InternalApiFp(configuration).determinedAllocationPreemptionSignal(allocationId, timeoutSeconds, options)(fetch, basePath);
+        },
+        /**
+         * 
+         * @summary Gather an allocation's rendezvous info. Blocks until all trial containers connect to gather their rendezvous information and responds to them all at once.
+         * @param {string} allocationId The id of the allocation.
+         * @param {string} containerId The id of the allocation. Used to verify all allocations are connected.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        determinedAllocationRendezvousInfo(allocationId: string, containerId: string, options?: any) {
+            return InternalApiFp(configuration).determinedAllocationRendezvousInfo(allocationId, containerId, options)(fetch, basePath);
         },
         /**
          * 
@@ -10501,28 +10541,6 @@ export const InternalApiFactory = function (configuration?: Configuration, fetch
         },
         /**
          * 
-         * @summary Long poll preemption signals for the given task. If the task's current task has been preempted when called, it will return so immediately. Otherwise, the connection will be kept open until the timeout is reached or the task is preempted.
-         * @param {string} taskId The id of the task.
-         * @param {number} [timeoutSeconds] The timeout in seconds.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        determinedTaskPreemptionSignal(taskId: string, timeoutSeconds?: number, options?: any) {
-            return InternalApiFp(configuration).determinedTaskPreemptionSignal(taskId, timeoutSeconds, options)(fetch, basePath);
-        },
-        /**
-         * 
-         * @summary Gather a task's rendezvous info. Blocks until all trial containers connect to gather their rendezvous information and responds to them all at once.
-         * @param {string} taskId The id of the task.
-         * @param {string} containerId The id of the allocation. Used to verify all allocations are connected.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        determinedTaskRendezvousInfo(taskId: string, containerId: string, options?: any) {
-            return InternalApiFp(configuration).determinedTaskRendezvousInfo(taskId, containerId, options)(fetch, basePath);
-        },
-        /**
-         * 
          * @summary Get a sample of the metrics over time for a sample of the trials.
          * @param {number} experimentId The id of the experiment.
          * @param {string} metricName A metric name.
@@ -10565,15 +10583,41 @@ export const InternalApiFactory = function (configuration?: Configuration, fetch
 export class InternalApi extends BaseAPI {
     /**
      * 
-     * @summary Acknowledge the receipt of a signal to stop the current running task early. This is used indicate and exit 0 isn't final. Used for HP search directed early stops and preemption signals (not necessarily just scheduler preemption).
-     * @param {string} taskId The task that is acknowledging the request.
-     * @param {V1AckTaskPreemptionSignalRequest} body 
+     * @summary Acknowledge the receipt of a signal to stop the given allocation early. This is used indicate and exit 0 isn't final; specifically, it is used for HP search directed early stops and preemption signals (not necessarily just scheduler preemption).
+     * @param {string} allocationId The allocation that is acknowledging the request.
+     * @param {V1AckAllocationPreemptionSignalRequest} body 
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof InternalApi
      */
-    public determinedAckTaskPreemptionSignal(taskId: string, body: V1AckTaskPreemptionSignalRequest, options?: any) {
-        return InternalApiFp(this.configuration).determinedAckTaskPreemptionSignal(taskId, body, options)(this.fetch, this.basePath);
+    public determinedAckAllocationPreemptionSignal(allocationId: string, body: V1AckAllocationPreemptionSignalRequest, options?: any) {
+        return InternalApiFp(this.configuration).determinedAckAllocationPreemptionSignal(allocationId, body, options)(this.fetch, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Long poll preemption signals for the given allocation. If the allocation has been preempted when called, it will return so immediately. Otherwise, the connection will be kept open until the timeout is reached or the allocation is preempted.
+     * @param {string} allocationId The id of the allocation.
+     * @param {number} [timeoutSeconds] The timeout in seconds.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof InternalApi
+     */
+    public determinedAllocationPreemptionSignal(allocationId: string, timeoutSeconds?: number, options?: any) {
+        return InternalApiFp(this.configuration).determinedAllocationPreemptionSignal(allocationId, timeoutSeconds, options)(this.fetch, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Gather an allocation's rendezvous info. Blocks until all trial containers connect to gather their rendezvous information and responds to them all at once.
+     * @param {string} allocationId The id of the allocation.
+     * @param {string} containerId The id of the allocation. Used to verify all allocations are connected.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof InternalApi
+     */
+    public determinedAllocationRendezvousInfo(allocationId: string, containerId: string, options?: any) {
+        return InternalApiFp(this.configuration).determinedAllocationRendezvousInfo(allocationId, containerId, options)(this.fetch, this.basePath);
     }
 
     /**
@@ -10790,32 +10834,6 @@ export class InternalApi extends BaseAPI {
      */
     public determinedReportTrialValidationMetrics(validationMetricsTrialId: number, body: V1ValidationMetrics, options?: any) {
         return InternalApiFp(this.configuration).determinedReportTrialValidationMetrics(validationMetricsTrialId, body, options)(this.fetch, this.basePath);
-    }
-
-    /**
-     * 
-     * @summary Long poll preemption signals for the given task. If the task's current task has been preempted when called, it will return so immediately. Otherwise, the connection will be kept open until the timeout is reached or the task is preempted.
-     * @param {string} taskId The id of the task.
-     * @param {number} [timeoutSeconds] The timeout in seconds.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof InternalApi
-     */
-    public determinedTaskPreemptionSignal(taskId: string, timeoutSeconds?: number, options?: any) {
-        return InternalApiFp(this.configuration).determinedTaskPreemptionSignal(taskId, timeoutSeconds, options)(this.fetch, this.basePath);
-    }
-
-    /**
-     * 
-     * @summary Gather a task's rendezvous info. Blocks until all trial containers connect to gather their rendezvous information and responds to them all at once.
-     * @param {string} taskId The id of the task.
-     * @param {string} containerId The id of the allocation. Used to verify all allocations are connected.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof InternalApi
-     */
-    public determinedTaskRendezvousInfo(taskId: string, containerId: string, options?: any) {
-        return InternalApiFp(this.configuration).determinedTaskRendezvousInfo(taskId, containerId, options)(this.fetch, this.basePath);
     }
 
     /**
