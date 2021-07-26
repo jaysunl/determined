@@ -267,6 +267,7 @@ func (t *trial) processAllocation(ctx *actor.Context, msg sproto.ResourcesAlloca
 	default:
 		latestBatch = latestCheckpoint.TotalBatches
 	}
+	t.runID++
 	trialSpec := &tasks.TrialSpec{
 		Base: *t.taskSpec,
 
@@ -284,7 +285,6 @@ func (t *trial) processAllocation(ctx *actor.Context, msg sproto.ResourcesAlloca
 
 	// Store lots of metadata for the allocation. Side note: we probably don't need
 	// run ID and allocation ID, but I haven't put in the thought yet to remove run ID.
-	t.runID++
 	if err = t.db.UpdateTrialRunID(t.id, t.runID); err != nil {
 		return errors.Wrap(err, "failed to save trial run AllocationID")
 	}
@@ -358,6 +358,12 @@ func (t *trial) processAllocationExit(ctx *actor.Context, exit AllocationExitSta
 
 // transition transitions the trial and rectifies the underlying allocation state with it.
 func (t *trial) transition(ctx *actor.Context, state model.State) error {
+	// A terminal-state trial never transitions.
+	if terminal := model.TerminalStates[t.state]; terminal {
+		ctx.Log().Infof("ignoring noop transition from %s to %s", t.state, state)
+		return nil
+	}
+
 	// Transition the trial.
 	ctx.Log().Infof("trial changed from state %s to %s", t.state, state)
 	if t.idSet {

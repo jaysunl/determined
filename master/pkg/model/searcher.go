@@ -33,6 +33,16 @@ func NewRequestID(r io.Reader) RequestID {
 	// Ensure that the underlying UUID is a valid UUIDv4.
 	u[6] = (u[6] & 0x0f) | 0x40 // Version 4.
 	u[8] = (u[8] & 0x3f) | 0x80 // Variant is 10.
+
+	// rb: Uggh.  Now that we store RequestIDs in the database, they need to actually be random.
+	// But as a really terrible hotfix where I don't want to think about the consequences, I'm going
+	// to preserve perfect searcher reproducibility, I'm leaving the RNG-affecting code alone.
+	u, err := uuid.NewRandom()
+	if err != nil {
+		// XXX: fix error handling
+		panic("failed to generate UUID")
+	}
+
 	return RequestID(u)
 }
 

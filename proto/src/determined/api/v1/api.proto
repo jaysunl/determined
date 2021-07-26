@@ -622,8 +622,9 @@ service Determined {
       tags: "Internal"
     };
   }
-  // Gather an allocation's rendezvous info. Blocks until all trial containers connect
-  // to gather their rendezvous information and responds to them all at once.
+  // Gather an allocation's rendezvous info. Blocks until all trial containers
+  // connect to gather their rendezvous information and responds to them all at
+  // once.
   rpc AllocationRendezvousInfo(AllocationRendezvousInfoRequest)
       returns (AllocationRendezvousInfoResponse) {
     option (google.api.http) = {
