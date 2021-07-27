@@ -58,6 +58,8 @@ def main() -> None:
                 int(worker_process_env.env.det_trial_id),
                 worker_process_env.env.trial_run_id,
                 int(worker_process_env.env.det_experiment_id),
+                None,
+                None,
             )
             training.report_early_exit(_training.EarlyExitReason.INVALID_HP)
             raise
